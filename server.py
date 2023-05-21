@@ -23,10 +23,15 @@ from comfy.cli_args import args
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
-    response: web.Response = await handler(request)
+    response=None
+    try:
+        response: web.Response = await handler(request)
+    except web.HTTPException as e:
+        print(e)
     if request.path.endswith('.js') or request.path.endswith('.css'):
         response.headers.setdefault('Cache-Control', 'no-cache')
-    return response
+    if response:
+        return response
 
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
@@ -55,7 +60,7 @@ class PromptServer():
         self.loop = loop
         self.messages = asyncio.Queue()
         self.number = 0
-
+        self.server_strings = {}
         middlewares = [cache_control]
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
@@ -167,6 +172,19 @@ class PromptServer():
         @routes.get("/prompt")
         async def get_prompt(request):
             return web.json_response(self.get_queue_info())
+        @routes.get("/string")
+        async def get_string(request):
+            # the SSID is stored in the query string
+            SSID = request.rel_url.query.get('SSID', '')
+
+            if SSID:
+                try:
+                    server_string = self.server_strings[SSID]
+                except KeyError:
+                    server_string = "empty"
+                if server_string:
+                    return web.json_response(server_string)
+
 
         @routes.get("/object_info")
         async def get_object_info(request):

@@ -73,19 +73,21 @@ def load_extra_path_config(yaml_path):
                 print("Adding extra search path", x, full_path)
                 folder_paths.add_model_folder_path(x, full_path)
 
+server_obj_holder = [None]
 if __name__ == "__main__":
     cleanup_temp()
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    server = server.PromptServer(loop)
-    q = execution.PromptQueue(server)
+    server_obj = server.PromptServer(loop)
+    server_obj_holder[0] = server_obj
+    q = execution.PromptQueue(server_obj)
 
     init_custom_nodes()
-    server.add_routes()
-    hijack_progress(server)
+    server_obj.add_routes()
+    hijack_progress(server_obj)
 
-    threading.Thread(target=prompt_worker, daemon=True, args=(q,server,)).start()
+    threading.Thread(target=prompt_worker, daemon=True, args=(q, server_obj,)).start()
 
     address = args.listen
 
@@ -118,10 +120,10 @@ if __name__ == "__main__":
 
     if os.name == "nt":
         try:
-            loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
+            loop.run_until_complete(run(server_obj, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
         except KeyboardInterrupt:
             pass
     else:
-        loop.run_until_complete(run(server, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
+        loop.run_until_complete(run(server_obj, address=address, port=port, verbose=not dont_print, call_on_start=call_on_start))
 
     cleanup_temp()
