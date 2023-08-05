@@ -530,6 +530,8 @@ class PromptServer():
                                 use_graph["prompt"][target_k]["inputs"]["uuid"] = infer_uuid
 
                         if target_v["class_type"] == "SetApiResultKV":
+                            print (f"found SetApiResultKV {target_k} : {target_v}")
+                            print(f"setting SetApiResultKV uuid to {infer_uuid}")
                             use_graph["prompt"][target_k]["inputs"]["uuid"] = infer_uuid
 
                         if target_v["class_type"] == "SaveLastExec":
