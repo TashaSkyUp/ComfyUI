@@ -36,11 +36,13 @@ class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
 
+
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
     except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
         print("send error:", err)
+
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
@@ -197,7 +199,6 @@ class PromptServer():
         async def upload_image(request):
             post = await request.post()
             return image_upload(post)
-
 
         @routes.post("/upload/mask")
         async def upload_mask(request):
@@ -530,7 +531,7 @@ class PromptServer():
                                 use_graph["prompt"][target_k]["inputs"]["uuid"] = infer_uuid
 
                         if target_v["class_type"] == "SetApiResultKV":
-                            print (f"found SetApiResultKV {target_k} : {target_v}")
+                            print(f"found SetApiResultKV {target_k} : {target_v}")
                             print(f"setting SetApiResultKV uuid to {infer_uuid}")
                             use_graph["prompt"][target_k]["inputs"]["uuid"] = infer_uuid
 
@@ -557,14 +558,23 @@ class PromptServer():
             # pid = json.loads(result.body)["prompt_id"]
 
             # this is the callback that will be called when /prompt is done
-            async def wait_for_prompt_and_return_result(uuid):
-                while uuid not in shared.server_obj_holder[0]['executed']:
-                    await asyncio.sleep(0.01)
+            async def wait_for_prompt_and_return_result(uuid, timeout=10):
+                try:
+                    while uuid not in shared.server_obj_holder[0]['executed']:
+                        await asyncio.sleep(0.01)
+                        if timeout is not None:
+                            timeout -= 0.01
+                            if timeout <= 0:
+                                raise asyncio.TimeoutError
 
-                # get the result from the shared dict
-                result = shared.server_obj_holder[0]['executed'][uuid]
-                shared.server_obj_holder[0]['executed'].pop(uuid)
-                return result
+                    # get the result from the shared dict
+                    result = shared.server_obj_holder[0]['executed'][uuid]
+                    shared.server_obj_holder[0]['executed'].pop(uuid)
+                    return result
+
+                except asyncio.TimeoutError:
+                    import warnings
+                    warnings.warn(f"timeout waiting for {uuid}")
 
             # schedule the task to wait for prompt result
             task = asyncio.create_task(wait_for_prompt_and_return_result(infer_uuid))
