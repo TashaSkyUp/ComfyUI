@@ -500,6 +500,7 @@ def apply_empty_x_to_equal_area(conds, uncond, name, uncond_fill_func):
             n[name] = uncond_fill_func(cond_cnets, x)
             uncond[temp[1]] = [o[0], n]
 
+
 def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
     for t in range(len(conds)):
         x = conds[t]
@@ -511,11 +512,33 @@ def encode_adm(model, conds, batch_size, width, height, device, prompt_type):
             params["width"] = params.get("width", width * 8)
             params["height"] = params.get("height", height * 8)
             params["prompt_type"] = params.get("prompt_type", prompt_type)
-            adm_out = model.encode_adm(device=device, **params)
+
+            adms_out = []
+            # it looks like by default after broadcast_cond that pooled output is still batchsize 1
+            if x[1]["pooled_output"].shape[0] == 1 and batch_size != 1:
+                x[1]["pooled_output"] = x[1]["pooled_output"].repeat(batch_size, 1)
+            for i in range(batch_size):
+                tmp_params = params.copy()
+                tmp_params["pooled_output"] = x[1]["pooled_output"][i].unsqueeze(0)
+                # this appends some data to the end of dim1 of clip_pooled
+                # also moves its device to the device of a newly created tensor
+                adm_out = model.encode_adm(device=device, **tmp_params)
+                adms_out.append(adm_out)
 
         if adm_out is not None:
+            # this then adds "adm_encoded" to the parameters for the conditioning.
             x[1] = x[1].copy()
-            x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
+            # it appears to need to be repeated for each sub batch item?
+            # looks like comfy and I have our logics different.
+            # they want the conditionings that are given as a list to each have their own batch
+            # I'm trying to ignore the list of conditionings and have separate conditionings
+            # in the tensor that is passed to the model. that way we can have true batched rendering
+            # each image with different conds/latents but all computed at once in one batch
+            # or maybe its that they want each conditioing to be applied to the batch seperatley?
+            # regardless the rest of the framework appears to want this "adm_encoded" to be of (batch_size, ...)
+
+            # x[1]["adm_encoded"] = torch.cat([adm_out] * batch_size).to(device)
+            x[1]["adm_encoded"] = torch.cat(adms_out).to(device)
 
     return conds
 
