@@ -116,7 +116,6 @@ torchsde
 accelerate
 torch~=2.0.1+cu117
 torchvision~=0.15.2+cu117
-openai~=0.27.7
 steamship~=2.17.10
 torchaudio~=2.0.2+cu117
 fairscale~=0.4.13
