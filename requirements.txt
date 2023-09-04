@@ -44,7 +44,6 @@ lazy_loader
 lightning-utilities
 MarkupSafe
 matplotlib~=3.7.1
-mediapipe~=0.9.1.0
 mpmath
 multidict
 multiprocess
