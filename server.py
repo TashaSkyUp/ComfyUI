@@ -701,7 +701,7 @@ class PromptServer():
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port, verbose=True, call_on_start=None):
+    async def start(self, address, port, verbose=True, call_on_start=None, client_max_size=1024**3):
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
