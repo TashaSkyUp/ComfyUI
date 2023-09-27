@@ -87,8 +87,9 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
     noise = noise.to(device)
     latent_image = latent_image.to(device)
 
-    positive_copy = broadcast_cond(positive, noise.shape[0], device)
-    negative_copy = broadcast_cond(negative, noise.shape[0], device)
+    # use type hints, these are lists of lists with a tensor and a dict of additional data
+    positive_copy: list[list[torch.Tensor, dict]] = broadcast_cond(positive, noise.shape[0], device)
+    negative_copy: list[list[torch.Tensor, dict]] = broadcast_cond(negative, noise.shape[0], device)
 
     models = load_additional_models(positive, negative, model.model_dtype())
 
