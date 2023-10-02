@@ -67,7 +67,7 @@ import comfy.utils
 import yaml
 
 import execution
-#import server
+import server
 from server import BinaryEventTypes
 from nodes import init_custom_nodes
 import comfy.model_management
@@ -134,8 +134,9 @@ if __name__ == "__main__":
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     #server = server.PromptServer(loop)
-    import security
-    server = security.PromptServerSecurity(loop)
+    #import security
+    #server = security.PromptServerSecurity(loop)
+    server = server.PromptServer(loop)
     main_queue = execution.PromptQueue(server)
 
     extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
