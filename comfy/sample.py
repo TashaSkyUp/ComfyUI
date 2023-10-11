@@ -33,14 +33,35 @@ def prepare_mask(noise_mask, shape, device):
     noise_mask = noise_mask.to(device)
     return noise_mask
 
-def broadcast_cond(cond, batch, device):
-    """broadcasts conditioning to the batch size"""
-    copy = []
-    for p in cond:
-        t = comfy.utils.repeat_to_batch_size(p[0], batch)
-        t = t.to(device)
-        copy += [[t] + p[1:]]
-    return copy
+def broadcast_cond(cond, batch, device,kind="original"):
+    """
+    broadcasts conditioning to the batch size
+    expects a list of lists like [[tensor.shape=1,77,768,dict],...] where the tensor is the conditioning
+    broadcasts it to
+    [[tensor.shape={batch},77,768,dict],...]
+    but only if the tensor is smaller than the batch size
+    p = one of a [tensor, dict] pair
+    so we can assume that p is maybe a collection of conditionings to possibly do something with.
+    since the batch is in the tensor inside each p
+    """
+    if kind != "orginal":
+        copy = []
+        for p in cond:
+            tnsr = p[0]
+            if tnsr.shape[0] < batch:
+                tnsr = torch.cat([tnsr] * batch)
+            tnsr = tnsr.to(device)
+            copy += [[tnsr] + p[1:]]
+        return copy
+    else:
+        """broadcasts conditioning to the batch size"""
+        copy = []
+        for p in cond:
+            t = comfy.utils.repeat_to_batch_size(p[0], batch)
+            t = t.to(device)
+            copy += [[t] + p[1:]]
+        return copy
+
 
 def get_models_from_cond(cond, model_type):
     models = []
@@ -81,8 +102,8 @@ def prepare_sampling(model, noise_shape, positive, negative, noise_mask):
     comfy.model_management.load_models_gpu([model] + models, comfy.model_management.batch_area_memory(noise_shape[0] * noise_shape[2] * noise_shape[3]) + inference_memory)
     real_model = model.model
 
-    positive_copy = broadcast_cond(positive, noise_shape[0], device)
-    negative_copy = broadcast_cond(negative, noise_shape[0], device)
+    positive_copy: list[list[torch.Tensor, dict]] = broadcast_cond(positive, noise_shape[0], device)
+    negative_copy: list[list[torch.Tensor, dict]] = broadcast_cond(negative, noise_shape[0], device)
     return real_model, positive_copy, negative_copy, noise_mask, models
 
 
