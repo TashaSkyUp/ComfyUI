@@ -195,12 +195,12 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
             to_run += [(p, COND)]
         if uncond is not None:
-                for x in uncond:
-                    p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
-                    if p is None:
-                        continue
+            for x in uncond:
+                p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                if p is None:
+                    continue
 
-                    to_run += [(p, UNCOND)]
+                to_run += [(p, UNCOND)]
 
         while len(to_run) > 0:
             first = to_run[0]
@@ -261,7 +261,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                     transformer_options["patches"] = patches
 
             transformer_options["cond_or_uncond"] = cond_or_uncond[:]
-                c['transformer_options'] = transformer_options
+            c['transformer_options'] = transformer_options
 
             if 'model_function_wrapper' in model_options:
                 output = model_options['model_function_wrapper'](model_function,
@@ -271,9 +271,10 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                 output = model_function(input_x, timestep_, **c).chunk(batch_chunks)
             del input_x
 
-                for o in range(batch_chunks):
-                    if cond_or_uncond[o] == COND:
-                        out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * \
+            for o in range(batch_chunks):
+                if cond_or_uncond[o] == COND:
+                    out_cond[:, :, area[o][2]:area[o][0] + area[o][2], area[o][3]:area[o][1] + area[o][3]] += output[
+                                                                                                                  o] * \
                                                                                                               mult[o]
                     out_count[:, :, area[o][2]:area[o][0] + area[o][2], area[o][3]:area[o][1] + area[o][3]] += mult[o]
                 else:
@@ -281,7 +282,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                                                                                                                     o] * \
                                                                                                                 mult[o]
                     out_uncond_count[:, :, area[o][2]:area[o][0] + area[o][2], area[o][3]:area[o][1] + area[o][3]] += \
-                    mult[o]
+                        mult[o]
             del mult
 
         out_cond /= out_count
@@ -293,14 +294,15 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
 
     max_total_area = model_management.maximum_batch_area()
     if math.isclose(cond_scale, 1.0):
-            uncond = None
+        uncond = None
 
-        cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
-        if "sampler_cfg_function" in model_options:
-            args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
-            return model_options["sampler_cfg_function"](args)
-        else:
-            return uncond + (cond - uncond) * cond_scale
+    cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat,
+                                          model_options)
+    if "sampler_cfg_function" in model_options:
+        args = {"cond": cond, "uncond": uncond, "cond_scale": cond_scale, "timestep": timestep}
+        return model_options["sampler_cfg_function"](args)
+    else:
+        return uncond + (cond - uncond) * cond_scale
 
 
 class CompVisVDenoiser(k_diffusion_external.DiscreteVDDPMDenoiser):
@@ -364,6 +366,7 @@ def ddim_scheduler(model, steps):
     sigs += [0.0]
     return torch.FloatTensor(sigs)
 
+
 def sgm_scheduler(model, steps):
     sigs = []
     timesteps = torch.linspace(model.inner_model.inner_model.num_timesteps - 1, 0, steps + 1)[:-1].type(torch.int)
@@ -374,6 +377,7 @@ def sgm_scheduler(model, steps):
         sigs.append(model.t_to_sigma(torch.tensor(ts)))
     sigs += [0.0]
     return torch.FloatTensor(sigs)
+
 
 def blank_inpaint_image_like(latent_image):
     blank_image = torch.ones_like(latent_image)
@@ -598,8 +602,10 @@ class Sampler:
     def max_denoise(self, model_wrap, sigmas):
         return math.isclose(float(model_wrap.sigma_max), float(sigmas[0]), rel_tol=1e-05)
 
+
 class DDIM(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
+    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None,
+               disable_pbar=False):
         timesteps = []
         for s in range(sigmas.shape[0]):
             timesteps.insert(0, model_wrap.sigma_to_discrete_timestep(sigmas[s]))
@@ -616,7 +622,9 @@ class DDIM(Sampler):
 
         ddim_sampler = DDIMSampler(model_wrap.inner_model.inner_model, device=noise.device)
         ddim_sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
-        z_enc = ddim_sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(noise.device), noise=noise, max_denoise=max_denoise)
+        z_enc = ddim_sampler.stochastic_encode(latent_image,
+                                               torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(noise.device),
+                                               noise=noise, max_denoise=max_denoise)
         samples, _ = ddim_sampler.sample_custom(ddim_timesteps=timesteps,
                                                 batch_size=noise.shape[0],
                                                 shape=noise.shape[1:],
@@ -628,26 +636,37 @@ class DDIM(Sampler):
                                                 denoise_function=model_wrap.predict_eps_discrete_timestep,
                                                 extra_args=extra_args,
                                                 mask=noise_mask,
-                                                to_zero=sigmas[-1]==0,
+                                                to_zero=sigmas[-1] == 0,
                                                 end_step=sigmas.shape[0] - 1,
                                                 disable_pbar=disable_pbar)
         return samples
 
+
 class UNIPC(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args, noise_mask=denoise_mask, callback=callback, disable=disable_pbar)
+    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None,
+               disable_pbar=False):
+        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function,
+                                   max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args,
+                                   noise_mask=denoise_mask, callback=callback, disable=disable_pbar)
+
 
 class UNIPCBH2(Sampler):
-    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
-        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args, noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
+    def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None,
+               disable_pbar=False):
+        return uni_pc.sample_unipc(model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function,
+                                   max_denoise=self.max_denoise(model_wrap, sigmas), extra_args=extra_args,
+                                   noise_mask=denoise_mask, callback=callback, variant='bh2', disable=disable_pbar)
+
 
 KSAMPLER_NAMES = ["euler", "euler_ancestral", "heun", "dpm_2", "dpm_2_ancestral",
                   "lms", "dpm_fast", "dpm_adaptive", "dpmpp_2s_ancestral", "dpmpp_sde", "dpmpp_sde_gpu",
                   "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_2m_sde_gpu", "dpmpp_3m_sde", "dpmpp_3m_sde_gpu", "ddpm"]
 
+
 def ksampler(sampler_name, extra_options={}):
     class KSAMPLER(Sampler):
-        def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None, disable_pbar=False):
+        def sample(self, model_wrap, sigmas, extra_args, callback, noise, latent_image=None, denoise_mask=None,
+                   disable_pbar=False):
             extra_args["denoise_mask"] = denoise_mask
             model_k = KSamplerX0Inpaint(model_wrap)
             model_k.latent_image = latent_image
@@ -670,13 +689,23 @@ def ksampler(sampler_name, extra_options={}):
             if latent_image is not None:
                 noise += latent_image
             if sampler_name == "dpm_fast":
-                samples = k_diffusion_sampling.sample_dpm_fast(model_k, noise, sigma_min, sigmas[0], total_steps, extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+                samples = k_diffusion_sampling.sample_dpm_fast(model_k, noise, sigma_min, sigmas[0], total_steps,
+                                                               extra_args=extra_args, callback=k_callback,
+                                                               disable=disable_pbar)
             elif sampler_name == "dpm_adaptive":
-                samples = k_diffusion_sampling.sample_dpm_adaptive(model_k, noise, sigma_min, sigmas[0], extra_args=extra_args, callback=k_callback, disable=disable_pbar)
+                samples = k_diffusion_sampling.sample_dpm_adaptive(model_k, noise, sigma_min, sigmas[0],
+                                                                   extra_args=extra_args, callback=k_callback,
+                                                                   disable=disable_pbar)
             else:
-                samples = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))(model_k, noise, sigmas, extra_args=extra_args, callback=k_callback, disable=disable_pbar, **extra_options)
+                samples = getattr(k_diffusion_sampling, "sample_{}".format(sampler_name))(model_k, noise, sigmas,
+                                                                                          extra_args=extra_args,
+                                                                                          callback=k_callback,
+                                                                                          disable=disable_pbar,
+                                                                                          **extra_options)
             return samples
+
     return KSAMPLER
+
 
 def wrap_model(model):
     model_denoise = CFGNoisePredictor(model)
@@ -686,7 +715,9 @@ def wrap_model(model):
         model_wrap = k_diffusion_external.CompVisDenoiser(model_denoise, quantize=True)
     return model_wrap
 
-def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None, denoise_mask=None, callback=None, disable_pbar=False, seed=None):
+
+def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model_options={}, latent_image=None,
+           denoise_mask=None, callback=None, disable_pbar=False, seed=None):
     positive = positive[:]
     negative = negative[:]
 
@@ -698,7 +729,7 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     calculate_start_end_timesteps(model_wrap, negative)
     calculate_start_end_timesteps(model_wrap, positive)
 
-    #make sure each cond area has an opposite one with the same area
+    # make sure each cond area has an opposite one with the same area
     for c in positive:
         create_cond_with_same_area_if_none(negative, c)
     for c in negative:
@@ -706,7 +737,8 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
 
     pre_run_control(model_wrap, negative + positive)
 
-    apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)), negative, 'control', lambda cond_cnets, x: cond_cnets[x])
+    apply_empty_x_to_equal_area(list(filter(lambda c: c[1].get('control_apply_to_uncond', False) == True, positive)),
+                                negative, 'control', lambda cond_cnets, x: cond_cnets[x])
     apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
 
     if model.is_adm():
@@ -716,20 +748,21 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     if latent_image is not None:
         latent_image = model.process_latent_in(latent_image)
 
-    extra_args = {"cond":positive, "uncond":negative, "cond_scale": cfg, "model_options": model_options, "seed":seed}
+    extra_args = {"cond": positive, "uncond": negative, "cond_scale": cfg, "model_options": model_options, "seed": seed}
 
     cond_concat = None
-    if hasattr(model, 'concat_keys'): #inpaint
+    if hasattr(model, 'concat_keys'):  # inpaint
         cond_concat = []
         for ck in model.concat_keys:
             if denoise_mask is not None:
                 if ck == "mask":
-                    cond_concat.append(denoise_mask[:,:1])
+                    cond_concat.append(denoise_mask[:, :1])
                 elif ck == "masked_image":
-                    cond_concat.append(latent_image) #NOTE: the latent_image should be masked by the mask in pixel space
+                    cond_concat.append(
+                        latent_image)  # NOTE: the latent_image should be masked by the mask in pixel space
             else:
                 if ck == "mask":
-                    cond_concat.append(torch.ones_like(noise)[:,:1])
+                    cond_concat.append(torch.ones_like(noise)[:, :1])
                 elif ck == "masked_image":
                     cond_concat.append(blank_inpaint_image_like(noise))
         extra_args["cond_concat"] = cond_concat
@@ -737,15 +770,19 @@ def sample(model, noise, positive, negative, cfg, device, sampler, sigmas, model
     samples = sampler.sample(model_wrap, sigmas, extra_args, callback, noise, latent_image, denoise_mask, disable_pbar)
     return model.process_latent_out(samples.to(torch.float32))
 
+
 SCHEDULER_NAMES = ["normal", "karras", "exponential", "sgm_uniform", "simple", "ddim_uniform"]
 SAMPLER_NAMES = KSAMPLER_NAMES + ["ddim", "uni_pc", "uni_pc_bh2"]
+
 
 def calculate_sigmas_scheduler(model, scheduler_name, steps):
     model_wrap = wrap_model(model)
     if scheduler_name == "karras":
-        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_wrap.sigma_min), sigma_max=float(model_wrap.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_karras(n=steps, sigma_min=float(model_wrap.sigma_min),
+                                                        sigma_max=float(model_wrap.sigma_max))
     elif scheduler_name == "exponential":
-        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_wrap.sigma_min), sigma_max=float(model_wrap.sigma_max))
+        sigmas = k_diffusion_sampling.get_sigmas_exponential(n=steps, sigma_min=float(model_wrap.sigma_min),
+                                                             sigma_max=float(model_wrap.sigma_max))
     elif scheduler_name == "normal":
         sigmas = model_wrap.get_sigmas(steps)
     elif scheduler_name == "simple":
@@ -758,6 +795,7 @@ def calculate_sigmas_scheduler(model, scheduler_name, steps):
         print("error invalid scheduler", self.scheduler)
     return sigmas
 
+
 def sampler_class(name):
     if name == "uni_pc":
         sampler = UNIPC
@@ -768,6 +806,7 @@ def sampler_class(name):
     else:
         sampler = ksampler(name)
     return sampler
+
 
 class KSampler:
     SCHEDULERS = SCHEDULER_NAMES
@@ -830,4 +869,6 @@ class KSampler:
 
         sampler = sampler_class(self.sampler)
 
-        return sample(self.model, noise, positive, negative, cfg, self.device, sampler(), sigmas, self.model_options, latent_image=latent_image, denoise_mask=denoise_mask, callback=callback, disable_pbar=disable_pbar, seed=seed)
+        return sample(self.model, noise, positive, negative, cfg, self.device, sampler(), sigmas, self.model_options,
+                      latent_image=latent_image, denoise_mask=denoise_mask, callback=callback,
+                      disable_pbar=disable_pbar, seed=seed)
