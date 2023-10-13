@@ -143,7 +143,7 @@ app.registerExtension({
 			if (this.widgets) {
 				for (const w of this.widgets) {
 					if (w?.options?.forceInput || w?.options?.defaultInput) {
-						const config = nodeData?.input?.required[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
+						const config = nodeData?.input?.required?.[w.name] || nodeData?.input?.optional?.[w.name] || [w.type, w.options || {}];
 						convertToInput(this, w, config);
 					}
 				}
