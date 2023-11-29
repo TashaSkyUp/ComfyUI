@@ -505,7 +505,8 @@ def validate_inputs(prompt, item, validated):
                 o_id = val[0]
                 o_class_type = prompt[o_id]['class_type']
                 r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-                if r[val[1]] != type_input:
+                # if the return type is not equal to the input type unless the input type is `any` or '*' throw and error
+                if r[val[1]] != type_input and (type_input != "*") and (type_input != "any"):
                     received_type = r[val[1]]
                     details = f"{x}, {received_type} != {type_input}"
                     error = {
