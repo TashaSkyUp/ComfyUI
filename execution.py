@@ -505,23 +505,25 @@ def validate_inputs(prompt, item, validated):
                 o_id = val[0]
                 o_class_type = prompt[o_id]['class_type']
                 r = nodes.NODE_CLASS_MAPPINGS[o_class_type].RETURN_TYPES
-                # if the return type is not equal to the input type unless the input type is `any` or '*' throw and error
-                if r[val[1]] != type_input and (type_input != "*") and (type_input != "any"):
-                    received_type = r[val[1]]
-                    details = f"{x}, {received_type} != {type_input}"
-                    error = {
-                        "type": "return_type_mismatch",
-                        "message": "Return type mismatch between linked nodes",
-                        "details": details,
-                        "extra_info": {
-                            "input_name": x,
-                            "input_config": info,
-                            "received_type": received_type,
-                            "linked_node": val
+                # if the type of the input is not a wildcard
+                if (type_input != "*") and (type_input != "any"):
+                    # check if the return type of the linked node is the same as the input type
+                    if r[val[1]] != type_input:
+                        received_type = r[val[1]]
+                        details = f"{x}, {received_type} != {type_input}"
+                        error = {
+                            "type": "return_type_mismatch",
+                            "message": "Return type mismatch between linked nodes",
+                            "details": details,
+                            "extra_info": {
+                                "input_name": x,
+                                "input_config": info,
+                                "received_type": received_type,
+                                "linked_node": val
+                            }
                         }
-                    }
-                    errors.append(error)
-                    continue
+                        errors.append(error)
+                        continue
                 try:
                     r = validate_inputs(prompt, o_id, validated)
                     if r[0] is False:
@@ -758,7 +760,9 @@ def validate_prompt(prompt):
 
     return (True, None, list(good_outputs), node_errors)
 
+
 MAXIMUM_HISTORY_SIZE = 10000
+
 
 class PromptQueue:
     def __init__(self, server):
