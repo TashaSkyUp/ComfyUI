@@ -40,7 +40,10 @@ saved_requests_json = os.path.join(os.path.dirname(os.path.realpath(__file__)), 
 filename_list_cache = {}
 
 if not os.path.exists(input_directory):
-    os.makedirs(input_directory)
+    try:
+        os.makedirs(input_directory)
+    except:
+        print("Failed to create input directory")
 
 def set_output_directory(output_dir):
     global output_directory
