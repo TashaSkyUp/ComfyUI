@@ -1957,7 +1957,7 @@ def load_custom_nodes():
     node_import_times = []
 
     for custom_node_path in node_paths:
-        possible_modules = os.listdir(custom_node_path)
+        possible_modules = os.listdir(os.path.realpath(custom_node_path))
         if "__pycache__" in possible_modules:
             possible_modules.remove("__pycache__")
 
