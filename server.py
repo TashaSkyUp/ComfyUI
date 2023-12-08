@@ -33,7 +33,6 @@ import mimetypes
 from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
-from server_utils import safe_read_saved_graphs, is_valid_uuid
 
 
 class BinaryEventTypes:
@@ -247,7 +246,7 @@ class PromptServer():
                 if os.path.isfile(file):
                     with Image.open(file) as original_pil:
                         metadata = PngInfo()
-                        if hasattr(original_pil,'text'):
+                        if hasattr(original_pil, 'text'):
                             for key in original_pil.text:
                                 metadata.add_text(key, original_pil.text[key])
                         original_pil = original_pil.convert('RGBA')
@@ -413,7 +412,7 @@ class PromptServer():
             info['name'] = node_class
             info['display_name'] = nodes.NODE_DISPLAY_NAME_MAPPINGS[
                 node_class] if node_class in nodes.NODE_DISPLAY_NAME_MAPPINGS.keys() else node_class
-            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class,'DESCRIPTION') else ''
+            info['description'] = obj_class.DESCRIPTION if hasattr(obj_class, 'DESCRIPTION') else ''
             info['category'] = 'sd'
             if hasattr(obj_class, 'OUTPUT_NODE') and obj_class.OUTPUT_NODE == True:
                 info['output_node'] = True
@@ -440,7 +439,8 @@ class PromptServer():
                 try:
                     out[x] = node_info(x)
                 except Exception as e:
-                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.", file=sys.stderr)
+                    print(f"[ERROR] An error occurred while retrieving information for the '{x}' node.",
+                          file=sys.stderr)
                     traceback.print_exc()
             return web.json_response(out)
 
@@ -477,16 +477,13 @@ class PromptServer():
             print("got prompt")
             resp_code = 200
             out_string = ""
-            json_data =  await request.json()
+            json_data = await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
-            # TODO: Modify this to use the new on prompt handler
+            # TODO: Figure out if this is still needed
             if True:
                 if isinstance(request, web.Request):
                     json_data = await request.json()
-                else:
-                    json_data = request
-            ##
 
             if "number" in json_data:
                 number = float(json_data['number'])
@@ -617,8 +614,6 @@ class PromptServer():
             result = await task
             return web.json_response(result, status=200)
 
-        return
-
         @routes.post("/queue")
         async def post_queue(request):
             json_data = await request.json()
@@ -741,7 +736,7 @@ class PromptServer():
             msg = await self.messages.get()
             await self.send(*msg)
 
-    async def start(self, address, port, verbose=True, call_on_start=None, client_max_size=1024**3):
+    async def start(self, address, port, verbose=True, call_on_start=None, client_max_size=1024 ** 3):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         site = web.TCPSite(runner, address, port)
