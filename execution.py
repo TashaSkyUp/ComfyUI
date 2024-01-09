@@ -394,7 +394,7 @@ class PromptExecutor:
         if self.server.client_id is not None:
             self.server.send_sync("execution_start", {"prompt_id": prompt_id}, self.server.client_id)
 
-        with torch.inference_mode():
+        with torch.inference_mode(comfy.cli_args.args.force_inference):
             # delete cached outputs if nodes don't exist for them
             to_delete = []
             for o in self.outputs:
