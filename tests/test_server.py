@@ -4,7 +4,24 @@ server. """
 import unittest
 import json
 import requests
-from test_data import raw as test_dict
+from .test_data import raw as test_dict
+
+
+def send_request():
+    import random
+    import uuid
+    test_req_data = {
+        "graph_name": "test_simple_api_real_estate",
+        "prompt": "test prompt " + str(random.random()),
+        "uuid": str(uuid.uuid4()),
+
+    }
+    # set the json header
+    headers = {"Content-Type": "application/json"}
+
+    response = requests.post("http://127.0.0.1:3390/SWAIN/infer", json=test_req_data, headers=headers)
+    print(f'response:{response.text}')
+    # self.assertEqual(200, response.status_code)
 
 
 class TestExecServer(unittest.TestCase):
@@ -21,7 +38,7 @@ class TestExecServer(unittest.TestCase):
         # set the json header
         headers = {"Content-Type": "application/json"}
 
-        response = requests.post("http://127.0.0.1:8188/infer", json=test_req_data, headers=headers)
+        response = requests.post("http://127.0.0.1:3390/SWAIN/infer", json=test_req_data, headers=headers)
         print(response.text)
         self.assertEqual(200, response.status_code)
 
@@ -43,21 +60,7 @@ class TestExecServer(unittest.TestCase):
     def test_many(self):
         import multiprocessing
         # send many requests from different processes
-        def send_request():
-            import random
-            import uuid
-            test_req_data = {
-                "graph_name": "test_simple_api_real_estate",
-                "prompt": "test prompt "+str(random.random()),
-                "uuid": str(uuid.uuid4()),
 
-            }
-            # set the json header
-            headers = {"Content-Type": "application/json"}
-
-            response = requests.post("http://0.0.0.0:8188/infer", json=test_req_data, headers=headers)
-            print(f'response:{response.text}')
-            self.assertEqual(200, response.status_code)
         processes = []
         for i in range(10):
             p = multiprocessing.Process(target=send_request)
@@ -67,10 +70,6 @@ class TestExecServer(unittest.TestCase):
         for process in processes:
             process.join()
         print('done')
-
-
-
-
 
 
 if __name__ == "__main__":
