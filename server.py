@@ -480,7 +480,7 @@ class PromptServer():
             json_data = await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
-            # TODO: Figure out if this is still needed
+            # still needed until we find another way to save the prompt/graph to disk in the format we need
             if True:
                 if isinstance(request, web.Request):
                     json_data = await request.json()
