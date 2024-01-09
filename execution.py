@@ -10,12 +10,12 @@ import traceback
 import gc
 import time
 import shared
+import inspect
+
 import torch
 import nodes
 
 import comfy.model_management
-import shared
-
 
 def get_input_data(inputs, class_def, unique_id, outputs={}, prompt={}, extra_data={}):
     valid_inputs = class_def.INPUT_TYPES()
@@ -244,7 +244,6 @@ def recursive_execute(server, prompt, outputs, current_item, extra_data, execute
 
     executed.add(unique_id)
 
-    import main
     results_kv = {}
     for l1 in output_data:
         for l2 in l1:
@@ -335,11 +334,14 @@ def recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item
 
 class PromptExecutor:
     def __init__(self, server):
+        self.server = server
+        self.reset()
+
+    def reset(self):
         self.outputs = {}
         self.object_storage = {}
         self.outputs_ui = {}
         self.old_prompt = {}
-        self.server = server
 
     def handle_execution_error(self, prompt_id, prompt, current_outputs, executed, error, ex):
         node_id = error["node_id"]
@@ -453,6 +455,9 @@ class PromptExecutor:
             for x in executed:
                 self.old_prompt[x] = copy.deepcopy(prompt[x])
             self.server.last_node_id = None
+            if comfy.model_management.DISABLE_SMART_MEMORY:
+                comfy.model_management.unload_all_models()
+
 
 
 def validate_inputs(prompt, item, validated):
@@ -470,6 +475,9 @@ def validate_inputs(prompt, item, validated):
 
         errors = []
         valid = True
+
+        if hasattr(obj_class, "VALIDATE_INPUTS"):
+            validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
 
         for x in required_inputs:
             if x not in inputs:
@@ -603,10 +611,43 @@ def validate_inputs(prompt, item, validated):
                         errors.append(error)
                         continue
 
-                if hasattr(obj_class, "VALIDATE_INPUTS"):
-                    input_data_all = get_input_data(inputs, obj_class, unique_id)
-                    # ret = obj_class.VALIDATE_INPUTS(**input_data_all)
-                    ret = map_node_over_list(obj_class, input_data_all, "VALIDATE_INPUTS")
+                        if x not in validate_function_inputs:
+                            if isinstance(type_input, list):
+                                if val not in type_input:
+                                    input_config = info
+                                    list_info = ""
+
+                                    # Don't send back gigantic lists like if they're lots of
+                                    # scanned model filepaths
+                                    if len(type_input) > 20:
+                                        list_info = f"(list of length {len(type_input)})"
+                                        input_config = None
+                                    else:
+                                        list_info = str(type_input)
+
+                                    error = {
+                                        "type": "value_not_in_list",
+                                        "message": "Value not in list",
+                                        "details": f"{x}: '{val}' not in {list_info}",
+                                        "extra_info": {
+                                            "input_name": x,
+                                            "input_config": input_config,
+                                            "received_value": val,
+                                        }
+                                    }
+                                    errors.append(error)
+                                    continue
+
+            if len(validate_function_inputs) > 0:
+                input_data_all = get_input_data(inputs, obj_class, unique_id)
+                input_filtered = {}
+                for x in input_data_all:
+                    if x in validate_function_inputs:
+                        input_filtered[x] = input_data_all[x]
+
+                # ret = obj_class.VALIDATE_INPUTS(**input_filtered)
+                ret = map_node_over_list(obj_class, input_filtered, "VALIDATE_INPUTS")
+                for x in input_filtered:
                     for i, r in enumerate(ret):
                         if r is not True:
                             details = f"{x}"
@@ -625,32 +666,6 @@ def validate_inputs(prompt, item, validated):
                             }
                             errors.append(error)
                             continue
-                else:
-                    if isinstance(type_input, list):
-                        if val not in type_input:
-                            input_config = info
-                            list_info = ""
-
-                            # Don't send back gigantic lists like if they're lots of
-                            # scanned model filepaths
-                            if len(type_input) > 20:
-                                list_info = f"(list of length {len(type_input)})"
-                                input_config = None
-                            else:
-                                list_info = str(type_input)
-
-                            error = {
-                                "type": "value_not_in_list",
-                                "message": "Value not in list",
-                                "details": f"{x}: '{val}' not in {list_info}",
-                                "extra_info": {
-                                    "input_name": x,
-                                    "input_config": input_config,
-                                    "received_value": val,
-                                }
-                            }
-                            errors.append(error)
-                            continue
 
         if len(errors) > 0 or valid is not True:
             ret = (False, errors, unique_id)
@@ -658,9 +673,6 @@ def validate_inputs(prompt, item, validated):
             ret = (True, [], unique_id)
 
         validated[unique_id] = ret
-        return ret
-    else:
-        ret = (True, [], unique_id)
         return ret
 
 
@@ -760,9 +772,7 @@ def validate_prompt(prompt):
 
     return (True, None, list(good_outputs), node_errors)
 
-
 MAXIMUM_HISTORY_SIZE = 10000
-
 
 class PromptQueue:
     def __init__(self, server):
@@ -773,6 +783,7 @@ class PromptQueue:
         self.queue = []
         self.currently_running = {}
         self.history = {}
+        self.flags = {}
         server.prompt_queue = self
 
     def put(self, item):
@@ -861,3 +872,17 @@ class PromptQueue:
     def delete_history_item(self, id_to_delete):
         with self.mutex:
             self.history.pop(id_to_delete, None)
+
+    def set_flag(self, name, data):
+        with self.mutex:
+            self.flags[name] = data
+            self.not_empty.notify()
+
+    def get_flags(self, reset=True):
+        with self.mutex:
+            if reset:
+                ret = self.flags
+                self.flags = {}
+                return ret
+            else:
+                return self.flags.copy()
