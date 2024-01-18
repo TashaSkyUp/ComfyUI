@@ -475,7 +475,7 @@ def validate_inputs(prompt, item, validated):
 
         errors = []
         valid = True
-
+        validate_function_inputs = []
         if hasattr(obj_class, "VALIDATE_INPUTS"):
             validate_function_inputs = inspect.getfullargspec(obj_class.VALIDATE_INPUTS).args
 
