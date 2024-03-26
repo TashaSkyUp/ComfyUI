@@ -311,7 +311,14 @@ class SDXL(BaseModel):
         out.append(self.embedder(torch.Tensor([target_height])))
         out.append(self.embedder(torch.Tensor([target_width])))
         flat = torch.flatten(torch.cat(out)).unsqueeze(dim=0).repeat(clip_pooled.shape[0], 1)
-        return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
+        try:
+            return torch.cat((clip_pooled.to(flat.device), flat), dim=1)
+        except RuntimeError as e:
+            new = clip_pooled.squeeze(1)
+            return torch.cat((new.to(flat.device), flat), dim=1)
+
+
+
 
 class SVD_img2vid(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
