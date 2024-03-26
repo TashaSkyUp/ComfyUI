@@ -1,3 +1,4 @@
+import sys
 import comfy.options
 
 import os
@@ -76,7 +77,6 @@ if __name__ == "__main__":
 
     import comfy.utils
     import yaml
-
 
     import server
     from server import BinaryEventTypes
@@ -195,6 +195,26 @@ def load_extra_path_config(yaml_path):
                 folder_paths.add_model_folder_path(x, full_path)
 
 
+
+
+
+def get_current_script_dir():
+    """
+    Attempts to find the directory of the currently executing script.
+    Returns the directory path as a string.
+    """
+    # If __file__ is defined, use it to get the directory
+    if '__file__' in globals():
+        return os.path.dirname(os.path.abspath(__file__))
+
+    # Fallback for interactive sessions and certain execution environments
+    if hasattr(sys, 'argv') and sys.argv[0]:
+        return os.path.dirname(os.path.abspath(sys.argv[0]))
+
+    # If the above methods fail, use the current working directory as a last resort
+    return os.getcwd()
+
+
 main_queue = None
 if __name__ == "__main__":
     if args.temp_directory:
@@ -211,7 +231,7 @@ if __name__ == "__main__":
     server = server.PromptServer(loop)
     main_queue = execution.PromptQueue(server)
 
-    extra_model_paths_config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "extra_model_paths.yaml")
+    extra_model_paths_config_path = get_current_script_dir() + "/extra_model_paths.yaml"
     if os.path.isfile(extra_model_paths_config_path):
         load_extra_path_config(extra_model_paths_config_path)
 
