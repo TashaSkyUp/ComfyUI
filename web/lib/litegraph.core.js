@@ -11498,7 +11498,7 @@ LGraphNode.prototype.executeAction = function(action)
                 }
                 timeout_close = setTimeout(function() {
                     dialog.close();
-                }, 500);
+                }, typeof options.hide_on_mouse_leave === "number" ? options.hide_on_mouse_leave : 500);
             });
             // if filtering, check focus changed to comboboxes and prevent closing
             if (options.do_type_filter){
@@ -11551,7 +11551,7 @@ LGraphNode.prototype.executeAction = function(action)
                     dialog.close();
                 } else if (e.keyCode == 13) {
                     if (selected) {
-                        select(selected.innerHTML);
+                        select(unescape(selected.dataset["type"]));
                     } else if (first) {
                         select(first);
                     } else {
@@ -11912,7 +11912,7 @@ LGraphNode.prototype.executeAction = function(action)
 					var ctor = LiteGraph.registered_node_types[ type ];
 					if(filter && ctor.filter != filter )
 						return false;
-                    if ((!options.show_all_if_empty || str) && type.toLowerCase().indexOf(str) === -1)
+                    if ((!options.show_all_if_empty || str) && type.toLowerCase().indexOf(str) === -1 && (!ctor.title || ctor.title.toLowerCase().indexOf(str) === -1))
                         return false;
                     
                     // filter by slot IN, OUT types
@@ -11966,7 +11966,18 @@ LGraphNode.prototype.executeAction = function(action)
                 if (!first) {
                     first = type;
                 }
-                help.innerText = type;
+
+                const nodeType = LiteGraph.registered_node_types[type];
+                if (nodeType?.title) {
+                    help.innerText = nodeType?.title;
+                    const typeEl = document.createElement("span");
+                    typeEl.className = "litegraph lite-search-item-type";
+                    typeEl.textContent = type;
+                    help.append(typeEl);
+                } else {
+                    help.innerText = type;
+                }
+
                 help.dataset["type"] = escape(type);
                 help.className = "litegraph lite-search-item";
                 if (className) {
