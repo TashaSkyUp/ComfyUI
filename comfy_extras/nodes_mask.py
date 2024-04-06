@@ -106,8 +106,12 @@ class MaskToImage:
     FUNCTION = "mask_to_image"
 
     def mask_to_image(self, mask):
-        result = mask[None, :, :, None].expand(-1, -1, -1, 3)
+        if len(mask.shape) == 2:
+            result = mask[None, :, :, None].expand(-1, -1, -1, 3)
+        if len(mask.shape) == 3:
+            result = mask[:, :, :, None].expand(-1, -1, -1, 3)
         return (result,)
+
 
 class ImageToMask:
     @classmethod
