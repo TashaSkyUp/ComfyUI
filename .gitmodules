@@ -1,0 +1,3 @@
+[submodule "custom_nodes/HMG_GDE_Nodes"]
+	path = custom_nodes/HMG_GDE_Nodes
+	url = https://github.com/TashaSkyUp/HMG_GDE_Nodes.git
