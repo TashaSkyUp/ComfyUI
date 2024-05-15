@@ -83,7 +83,7 @@ def get_torch_device():
         return torch.device("cpu")
     else:
         if is_intel_xpu():
-            return torch.device("xpu")
+            return torch.device("xpu", torch.xpu.current_device())
         else:
             return torch.device(torch.cuda.current_device())
 
@@ -102,8 +102,8 @@ def get_total_memory(dev=None, torch_total_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
-            mem_total = torch.xpu.get_device_properties(dev).total_memory
             mem_total_torch = mem_reserved
+            mem_total = torch.xpu.get_device_properties(dev).total_memory
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_reserved = stats['reserved_bytes.all.current']
@@ -274,6 +274,7 @@ class LoadedModel:
         self.model = model
         self.device = model.load_device
         self.weights_loaded = False
+        self.real_model = None
 
     def model_memory(self):
         return self.model.model_size()
@@ -284,7 +285,7 @@ class LoadedModel:
         else:
             return self.model_memory()
 
-    def model_load(self, lowvram_model_memory=0):
+    def model_load(self, lowvram_model_memory=0, force_patch_weights=False):
         patch_model_to = self.device
 
         self.model.model_patches_to(self.device)
@@ -294,7 +295,7 @@ class LoadedModel:
 
         try:
             if lowvram_model_memory > 0 and load_weights:
-                self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory)
+                self.real_model = self.model.patch_model_lowvram(device_to=patch_model_to, lowvram_model_memory=lowvram_model_memory, force_patch_weights=force_patch_weights)
             else:
                 self.real_model = self.model.patch_model(device_to=patch_model_to, patch_weights=load_weights)
         except Exception as e:
@@ -303,15 +304,21 @@ class LoadedModel:
             raise e
 
         if is_intel_xpu() and not args.disable_ipex_optimize:
-            self.real_model = torch.xpu.optimize(self.real_model.eval(), inplace=True, auto_kernel_selection=True, graph_mode=True)
+            self.real_model = ipex.optimize(self.real_model.eval(), graph_mode=True, concat_linear=True)
 
         self.weights_loaded = True
         return self.real_model
+
+    def should_reload_model(self, force_patch_weights=False):
+        if force_patch_weights and self.model.lowvram_patch_counter > 0:
+            return True
+        return False
 
     def model_unload(self, unpatch_weights=True):
         self.model.unpatch_model(self.model.offload_device, unpatch_weights=unpatch_weights)
         self.model.model_patches_to(self.model.offload_device)
         self.weights_loaded = self.weights_loaded and not unpatch_weights
+        self.real_model = None
 
     def __eq__(self, other):
         return self.model is other.model
@@ -326,7 +333,7 @@ def unload_model_clones(model, unload_weights_only=True, force_unload=True):
             to_unload = [i] + to_unload
 
     if len(to_unload) == 0:
-        return None
+        return True
 
     same_weights = 0
     for i in to_unload:
@@ -377,22 +384,34 @@ def free_memory(memory_required, device, keep_loaded=[]):
             if mem_free_torch > mem_free_total * 0.25:
                 soft_empty_cache()
 
-def load_models_gpu(models, memory_required=0):
+def load_models_gpu(models, memory_required=0, force_patch_weights=False):
     global vram_state
 
     inference_memory = minimum_inference_memory()
     extra_mem = max(inference_memory, memory_required)
 
+    models = set(models)
+
     models_to_load = []
     models_already_loaded = []
     for x in models:
         loaded_model = LoadedModel(x)
+        loaded = None
 
-        if loaded_model in current_loaded_models:
-            index = current_loaded_models.index(loaded_model)
-            current_loaded_models.insert(0, current_loaded_models.pop(index))
-            models_already_loaded.append(loaded_model)
-        else:
+        try:
+            loaded_model_index = current_loaded_models.index(loaded_model)
+        except:
+            loaded_model_index = None
+
+        if loaded_model_index is not None:
+            loaded = current_loaded_models[loaded_model_index]
+            if loaded.should_reload_model(force_patch_weights=force_patch_weights): #TODO: cleanup this model reload logic
+                current_loaded_models.pop(loaded_model_index).model_unload(unpatch_weights=True)
+                loaded = None
+            else:
+                models_already_loaded.append(loaded)
+
+        if loaded is None:
             if hasattr(x, "model"):
                 logging.info(f"Requested to load {x.model.__class__.__name__}")
             models_to_load.append(loaded_model)
@@ -408,8 +427,8 @@ def load_models_gpu(models, memory_required=0):
 
     total_memory_required = {}
     for loaded_model in models_to_load:
-        unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) #unload clones where the weights are different
-        total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
+        if unload_model_clones(loaded_model.model, unload_weights_only=True, force_unload=False) == True:#unload clones where the weights are different
+            total_memory_required[loaded_model.device] = total_memory_required.get(loaded_model.device, 0) + loaded_model.model_memory_required(loaded_model.device)
 
     for device in total_memory_required:
         if device != torch.device("cpu"):
@@ -440,7 +459,7 @@ def load_models_gpu(models, memory_required=0):
         if vram_set_state == VRAMState.NO_VRAM:
             lowvram_model_memory = 64 * 1024 * 1024
 
-        cur_loaded_model = loaded_model.model_load(lowvram_model_memory)
+        cur_loaded_model = loaded_model.model_load(lowvram_model_memory, force_patch_weights=force_patch_weights)
         current_loaded_models.insert(0, loaded_model)
     return
 
@@ -448,11 +467,15 @@ def load_models_gpu(models, memory_required=0):
 def load_model_gpu(model):
     return load_models_gpu([model])
 
-def cleanup_models():
+def cleanup_models(keep_clone_weights_loaded=False):
     to_delete = []
     for i in range(len(current_loaded_models)):
         if sys.getrefcount(current_loaded_models[i].model) <= 2:
-            to_delete = [i] + to_delete
+            if not keep_clone_weights_loaded:
+                to_delete = [i] + to_delete
+            #TODO: find a less fragile way to do this.
+            elif sys.getrefcount(current_loaded_models[i].real_model) <= 3: #references from .real_model + the .model
+                to_delete = [i] + to_delete
 
     for i in to_delete:
         x = current_loaded_models.pop(i)
@@ -544,8 +567,6 @@ def text_encoder_device():
     if args.gpu_only:
         return get_torch_device()
     elif vram_state == VRAMState.HIGH_VRAM or vram_state == VRAMState.NORMAL_VRAM:
-        if is_intel_xpu():
-            return torch.device("cpu")
         if should_use_fp16(prioritize_performance=False):
             return get_torch_device()
         else:
@@ -609,7 +630,8 @@ def supports_dtype(device, dtype): #TODO
 def device_supports_non_blocking(device):
     if is_device_mps(device):
         return False #pytorch bug? mps doesn't support non blocking
-    return True
+    return False
+    # return True #TODO: figure out why this causes issues
 
 def cast_to_device(tensor, device, dtype, copy=False):
     device_supports_cast = False
@@ -679,10 +701,10 @@ def get_free_memory(dev=None, torch_free_too=False):
         elif is_intel_xpu():
             stats = torch.xpu.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
-            mem_allocated = stats['allocated_bytes.all.current']
             mem_reserved = stats['reserved_bytes.all.current']
             mem_free_torch = mem_reserved - mem_active
-            mem_free_total = torch.xpu.get_device_properties(dev).total_memory - mem_allocated
+            mem_free_xpu = torch.xpu.get_device_properties(dev).total_memory - mem_reserved
+            mem_free_total = mem_free_xpu + mem_free_torch
         else:
             stats = torch.cuda.memory_stats(dev)
             mem_active = stats['active_bytes.all.current']
