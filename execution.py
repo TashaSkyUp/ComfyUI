@@ -826,9 +826,7 @@ class PromptQueue:
 
             status_dict: Optional[dict] = None
             if status is not None:
-                status_dict = copy.deepcopy(status._asdict())            self.history[prompt[1]] = {"prompt": prompt, "outputs": copy.deepcopy(outputs),
-                'status': status_dict,
-            }
+                status_dict = copy.deepcopy(status._asdict())
             self.server.queue_updated()
 
     def get_current_queue(self):

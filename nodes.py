@@ -2098,7 +2098,7 @@ def init_custom_nodes():
 
     import_failed = []
     for node_file in extras_files:
-        if notload_custom_node(os.path.join(extras_dir, node_file)):
+        if not load_custom_node(os.path.join(extras_dir, node_file)):
             import_failed.append(node_file)
     load_custom_nodes()
 
