@@ -18,3 +18,4 @@ venv/
 /user/
 /.run/
 /google-credentials.json
+/tmp/*
