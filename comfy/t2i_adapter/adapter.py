@@ -148,7 +148,13 @@ class Adapter(nn.Module):
                 features.append(None)
             features.append(x)
 
-        return features
+        features = features[::-1]
+
+        if self.xl:
+            return {"input": features[1:], "middle": features[:1]}
+        else:
+            return {"input": features}
+
 
 
 class LayerNorm(nn.LayerNorm):
@@ -285,4 +291,4 @@ class Adapter_light(nn.Module):
             features.append(None)
             features.append(x)
 
-        return features
+        return {"input": features[::-1]}

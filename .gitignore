@@ -19,3 +19,5 @@ venv/
 /.run/
 /google-credentials.json
 /tmp/*
+*.log
+web_custom_versions/
