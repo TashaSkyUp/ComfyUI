@@ -4913,11 +4913,11 @@ LGraphNode.prototype.executeAction = function(action)
 
     LGraphGroup.prototype._ctor = function(title) {
         this.title = title || "Group";
-        this.font_size = 24;
+        this.font_size = 100;
         this.color = LGraphCanvas.node_colors.pale_blue
             ? LGraphCanvas.node_colors.pale_blue.groupcolor
             : "#AAA";
-        this._bounding = new Float32Array([10, 10, 140, 80]);
+        this._bounding = new Float32Array([10, 10, 300, 400]);
         this._pos = this._bounding.subarray(0, 2);
         this._size = this._bounding.subarray(2, 4);
         this._nodes = [];
