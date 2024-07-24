@@ -1,12 +1,16 @@
 import sys
 import comfy.options
 
+comfy.options.enable_args_parsing()
+
 import os
 import importlib.util
 import folder_paths
 import time
 from comfy.cli_args import args
 
+if "__file__" not in globals():
+    __file__ = os.path.abspath(__loader__.path)
 
 
 def execute_prestartup_script():
@@ -50,24 +54,20 @@ def execute_prestartup_script():
         print()
 
 
-# Main code
+execute_prestartup_script()
+
 import asyncio
 import itertools
 import shutil
 import threading
 import gc
-
 import logging
 
 if os.name == "nt":
-    logging.getLogger("xformers").addFilter(lambda record: 'A matching Triton is not available' not in record.getMessage())
+    logging.getLogger("xformers").addFilter(
+        lambda record: 'A matching Triton is not available' not in record.getMessage())
 
 if __name__ == "__main__":
-    comfy.options.enable_args_parsing()
-    from comfy.cli_args import args
-
-    execute_prestartup_script()
-
     if args.cuda_device is not None:
         os.environ['CUDA_VISIBLE_DEVICES'] = str(args.cuda_device)
         logging.info("Set cuda device to: {}".format(args.cuda_device))
@@ -77,15 +77,15 @@ if __name__ == "__main__":
             os.environ['CUBLAS_WORKSPACE_CONFIG'] = ":4096:8"
 
     import cuda_malloc
-    import execution
 
-    import comfy.utils
-    import yaml
+import comfy.utils
+import yaml
 
-    import server
-    from server import BinaryEventTypes
-    import nodes
-    import comfy.model_management
+import execution
+import server
+from server import BinaryEventTypes
+import nodes
+import comfy.model_management
 
 
 def cuda_malloc_warning():
@@ -99,6 +99,7 @@ def cuda_malloc_warning():
         if cuda_malloc_warning:
             logging.warning(
                 "\nWARNING: this card most likely does not support cuda-malloc, if you get \"CUDA error\" please run ComfyUI with: --disable-cuda-malloc\n")
+
 
 def prompt_worker(q, server):
     e = execution.PromptExecutor(server)
@@ -160,6 +161,11 @@ async def run(server, address='', port=8188, verbose=True, call_on_start=None):
     await asyncio.gather(server.start(address, port, verbose, call_on_start), server.publish_loop())
 
 
+async def run_multiple_ports(server, ports, address='', verbose=True, call_on_start=None):
+    tasks = [server.start(address, port, verbose, call_on_start) for port in ports]
+    await asyncio.gather(*tasks, server.publish_loop())
+
+
 def hijack_progress(server):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
@@ -199,9 +205,6 @@ def load_extra_path_config(yaml_path):
                 folder_paths.add_model_folder_path(x, full_path)
 
 
-
-
-
 def get_current_script_dir():
     """
     Attempts to find the directory of the currently executing script.
@@ -230,15 +233,13 @@ if __name__ == "__main__":
     if args.windows_standalone_build:
         try:
             import new_updater
+
             new_updater.update_windows_updater()
         except:
             pass
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    # server = server.PromptServer(loop)
-    # import security
-    # server = security.PromptServerSecurity(loop)
     server = server.PromptServer(loop)
     main_queue = execution.PromptQueue(server)
 
@@ -286,11 +287,14 @@ if __name__ == "__main__":
                 address = '127.0.0.1'
             webbrowser.open(f"{scheme}://{address}:{port}")
 
+
         call_on_start = startup_server
 
     try:
-        loop.run_until_complete(run(server, address=args.listen, port=args.port, verbose=not args.dont_print_server,
-                                    call_on_start=call_on_start))
+        ports = [8188, 8189]  # List of ports to listen on
+        loop.run_until_complete(
+            run_multiple_ports(server, ports, address=args.listen, verbose=not args.dont_print_server,
+                               call_on_start=call_on_start))
     except KeyboardInterrupt:
         logging.info("\nStopped server")
 
